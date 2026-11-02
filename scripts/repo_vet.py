@@ -176,16 +176,31 @@ def main():
     # ---- 打分 ----
     score = 0
     flags = []
+    notes = []
 
     def hit(points, text):
         nonlocal score
         score += points
         flags.append(text)
 
+    # 根目录有 README 且条目 >= 3，视为具备真实项目结构。
+    # 此时体积与提交数属于统计噪声：GitHub 的 size 对新仓库有延迟，
+    # 首次发布也必然只有 1 次提交，二者都不能作为空壳证据。
+    substantive = bool(has_readme and root is not None and len(root_names) >= 3)
+
     if size <= 1:
-        hit(3, "体积 %s，无实质内容" % fmt_size(size))
+        if substantive:
+            notes.append(
+                "体积统计为 %s，但根目录已有 %d 项（新仓库统计延迟，不作为证据）"
+                % (fmt_size(size), len(root_names))
+            )
+        else:
+            hit(3, "体积 %s，无实质内容" % fmt_size(size))
     if commits is not None and commits <= 1:
-        hit(2, "仅 %d 次提交，占位式建仓" % commits)
+        if substantive:
+            notes.append("仅 %d 次提交，但根目录结构完整（首次发布，不作为证据）" % commits)
+        else:
+            hit(2, "仅 %d 次提交，占位式建仓" % commits)
     if root is not None and not has_readme:
         hit(2, "根目录没有 README")
     placeholder = (
@@ -239,6 +254,7 @@ def main():
             "official_candidate": official,
         },
         "flags": flags,
+        "notes": notes,
     }
 
     if as_json:
@@ -273,6 +289,12 @@ def main():
         print("可疑信号：")
         for f in flags:
             print("  ⚠ %s" % f)
+        print(line)
+
+    if notes:
+        print("说明：")
+        for n in notes:
+            print("  · %s" % n)
         print(line)
 
     print("结论：%s（评分 %d）" % (verdict, score))
